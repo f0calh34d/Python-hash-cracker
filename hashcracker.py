@@ -1,80 +1,78 @@
 import hashlib
 import argparse
 import os
+from typing import List, Optional
 from termcolor import cprint
+from hashlib import algorithms_available
 
-def parse_args():
+__VERSION__ = 1.0
+
+
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("-H", "--hash", required=True, help="The hash to crack.")
-    parser.add_argument("-t", "--type", required=True, help="The type of the hash. This are the available type of hashes: SHA-1, SHA-3_224, SHA-3_256, SHA-3_384, SHA-3_512, SHA-256, SHA-512, MD5")
-    parser.add_argument("-w", "--wordlist", required=True, help="You need to be in the same path as the wordlist.")
-    args = parser.parse_args()
-    return args
+    parser.add_argument(
+        "-H", "--hash",
+        required=True,
+        help="The hash to crack."
+    )
+    parser.add_argument(
+        "-t", "--type",
+        required=True,
+        choices=algorithms_available,
+        help=f"The type of the hash. These are the available types of hashes: {algorithms_available}"
+    )
+    parser.add_argument(
+        "-w", "--wordlist",
+        required=True,
+        help="Path to wordlist.")
+    return parser.parse_args()
 
-def get_hash_types():
-    args = parse_args()
-    if args.type == "SHA-1":
-        hash_type = hashlib.sha1
-    elif args.type == "SHA-3_224":
-        hash_type = hashlib.sha3_224
-    elif args.type == "SHA-3_256":
-        hash_type = hashlib.sha3_256
-    elif args.type == "SHA-3_384":
-        hash_type = hashlib.sha3_384
-    elif args.type == "SHA-3_512":
-        hash_type = hashlib.sha3_512
-    elif args.type == "SHA-256":
-        hash_type = hashlib.sha256
-    elif args.type == "SHA-512":
-        hash_type = hashlib.sha512
-    elif args.type == "MD5":
-        hash_type = hashlib.md5
-    else:
-        return False
-    return hash_type
-
-def get_os():
-    os_name = os.name
-    if os_name == "posix":
-        return "GNU/Linux"
-    elif os_name == "nt":
-        return "Windows"
-    else:
-        return "Unknown"
-
-def print_info():
-    os = get_os()
-    print(f"[INFO] Running on {os}")
-    print("[INFO] Python Hash Cracker v1")
 
 class HashCracker:
-    def __init__(self):
-        self.args = parse_args()
-        self.hash_type = get_hash_types()
-        self.info = print_info()
-        self.tried_words = 0
+    os_type = {
+        'posix': 'GNU/Linux',
+        'nt': 'Windows'
+    }
 
-    def main(self):
-        if self.hash_type:
-            print(self.info)
+    def __init__(self, wordlist: str) -> None:
+        self.wordlist = wordlist
+
+    def crack(self, digest: str, hash_type: str) -> Optional[str]:
+        words: List[str] = []
+        if hash_type in algorithms_available:
+            print(
+                f'[INFO] Running on {self.os_type.get(os.name, "Unknown")}\n'
+                f'[INFO] Python Hash Cracker v{__VERSION__}'
+            )
             print("[+] Started hash cracker")
             try:
-                with open(self.args.wordlist, "r", errors="replace") as f:
+                with open(self.wordlist, "r", errors="replace") as f:
                     for line in f:
-                            plaintext = line.strip()
-                            encoded_line = plaintext.encode()
-                            hashed_line = self.hash_type(encoded_line).hexdigest()
-                            if hashed_line == self.args.hash:
-                                cprint(f"[+] Hash found: {plaintext}", "green")
-                                print(f"[FINISH INFO] {self.tried_words} words were tried.")
-                                break
-                            self.tried_words += 1
+                        words.append(line.strip())
             except FileNotFoundError:
                 cprint("[-] You entered a non valid file.", "red")
                 cprint("[-] Hash cracker stopped", "red")
+
+            for n, word in enumerate(words):
+                hashed_word = hashlib.new(
+                    hash_type, data=word.encode()).hexdigest()
+
+                if hashed_word == digest:
+                    result = word
+                    cprint(f"[+] Hash found: {result}", "green")
+                    print(f"[FINISH INFO] {n} words were tried.")
+                    return result
+
         else:
             cprint("[-] Hash type not valid", "red")
             cprint("[-] Hash cracker stopped", "red")
 
-hashcracker = HashCracker()
-hashcracker.main()
+
+def main():
+    args = parse_args()
+    hashcracker = HashCracker(wordlist=args.wordlist)
+    hashcracker.crack(digest=args.hash, hash_type=args.type)
+
+
+if __name__ == '__main__':
+    main()
